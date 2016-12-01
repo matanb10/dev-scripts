@@ -11,7 +11,7 @@ KVM_RELEASE=sid
 KVM_PACKAGES=openssh-server,python,perl,vim,pciutils,ibverbs-utils,libibverbs-dev,libmlx5-dev,infiniband-diags,opensm,librdmacm-dev,rdmacm-utils,libnl-3-200,libnl-route-3-200
 KVM_SHARED=$(SRC_ROOT)/kvm_shared
 KVM_SHARED_USER=$(KVM_SHARED)/usr
-KVM_SHARED_MODULES=$(KVM_SHARED)/modules/lib/modules
+KVM_SHARED_MODULES=$(KVM_SHARED)/modules
 KVM_IMAGE=$(SRC_ROOT)/dev-scripts/build
 
 # SimX
@@ -114,7 +114,7 @@ clean-shared:
 
 libs:
 	@echo "Build libibverbs"
-	@cd $(LIBIBVERBS_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) CFLAGS=-I$(KVM_SHARED_USER)/include LDFLAGS=-L$(KVM_SHARED_USER)/lib CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
+	@cd $(LIBIBVERBS_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) --sysconfdir=/etc CFLAGS=-I$(KVM_SHARED_USER)/include LDFLAGS=-L$(KVM_SHARED_USER)/lib CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
 	@echo "Build libmlx5"
 	@cd $(LIBMLX5_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) CFLAGS=-I$(KVM_SHARED_USER)/include LDFLAGS=-L$(KVM_SHARED_USER)/lib CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
 
