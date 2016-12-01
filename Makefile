@@ -8,14 +8,15 @@ VMWARE_VM_REPACK=$(SRC_ROOT)/src/vm-machines/archlinux/archlinux-000001.vmdk
 #KVM_RELEASE=wheezy
 #KVM_RELEASE=jessie
 KVM_RELEASE=sid
-KVM_PACKAGES=openssh-server,python,perl,vim,pciutils,ibverbs-utils,libibverbs-dev,libmlx5-dev,infiniband-diags,opensm,librdmacm-dev,rdmacm-utils
+KVM_PACKAGES=openssh-server,python,perl,vim,pciutils,ibverbs-utils,libibverbs-dev,libmlx5-dev,infiniband-diags,opensm,librdmacm-dev,rdmacm-utils,libnl-3-200,libnl-route-3-200
 KVM_SHARED=$(SRC_ROOT)/kvm_shared
 KVM_SHARED_USER=$(KVM_SHARED)/usr
 KVM_SHARED_MODULES=$(KVM_SHARED)/modules/lib/modules
+KVM_IMAGE=$(SRC_ROOT)/dev-scripts/build
 
 # SimX
 #SIMX_BIN=$(SRC_ROOT)/simx_bin/bin/qemu-system-x86_64
-SIMX_BIN=/images/SOURCE/simx/x86_64-softmmu/qemu-system-x86_64
+SIMX_BIN=$(SRC_ROOT)/simx/x86_64-softmmu/qemu-system-x86_64
 
 # LIBS
 LIBIBVERBS_SRC=$(SRC_ROOT)/libibverbs/
@@ -32,7 +33,7 @@ kvm:
 	@# add -s option for running gdb
 	@# and run "ggb vmlinux"
 	@kvm -kernel $(KERNEL_SRC)/arch/x86_64/boot/bzImage -drive \
-		file=$(SRC_ROOT)/kvm/build/$(KVM_RELEASE).img,if=virtio,format=raw \
+		file=$(KVM_IMAGE)/$(KVM_RELEASE).img,if=virtio,format=raw \
 		-append 'root=/dev/vda console=hvc0 debug rootwait rw' \
 		-chardev stdio,id=stdio,mux=on,signal=off \
 		-device virtio-serial-pci \
@@ -48,7 +49,7 @@ simx:
 	@# add -s option for running gdb
 	@# and run "ggb vmlinux"
 	@$(SIMX_BIN) -enable-kvm -kernel $(KERNEL_SRC)/arch/x86/boot/bzImage -drive \
-		file=$(SRC_ROOT)/kvm/build/$(KVM_RELEASE).img,if=virtio,format=raw \
+		file=$(KVM_IMAGE)/$(KVM_RELEASE).img,if=virtio,format=raw \
 		-no-reboot -nographic \
 		-m 512M -append 'root=/dev/vda console=hvc0 debug rootwait rw' \
 		-chardev stdio,id=stdio,mux=on,signal=off \
@@ -113,9 +114,9 @@ clean-shared:
 
 libs:
 	@echo "Build libibverbs"
-	@cd $(LIBIBVERBS_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED) CFLAGS=-I$(KVM_SHARED)/include LDFLAGS=-L$(KVM_SHARED)/lib CPPFLAGS=-I$(KVM_SHARED)/include; $(MAKE); $(MAKE) install
+	@cd $(LIBIBVERBS_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) CFLAGS=-I$(KVM_SHARED_USER)/include LDFLAGS=-L$(KVM_SHARED_USER)/lib CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
 	@echo "Build libmlx5"
-	@cd $(LIBMLX5_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED) CFLAGS=-I$(KVM_SHARED)/include LDFLAGS=-L$(KVM_SHARED)/lib CPPFLAGS=-I$(KVM_SHARED)/include; $(MAKE); $(MAKE) install
+	@cd $(LIBMLX5_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) CFLAGS=-I$(KVM_SHARED_USER)/include LDFLAGS=-L$(KVM_SHARED_USER)/lib CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
 
 build:
 	@echo "Start kernel build"
@@ -124,7 +125,10 @@ build:
 
 khi:
 	@echo "Install kernel headers"
-	@make -C $(KERNEL_SRC) headers_install INSTALL_HDR_PATH=$(KVM_SHARED)
+	@make -C $(KERNEL_SRC) headers_install INSTALL_HDR_PATH=$(KVM_SHARED_USER)
+
+modules_install:
+	@cd $(KERNEL_SRC)/; make modules_install INSTALL_MOD_PATH=$(KVM_SHARED_MODULES)
 
 strace:
 	@cd $(STRACE_SRC)/; ./bootstrap; ./configure --prefix=$(KVM_SHARED) CFLAGS=-I$(KVM_SHARED)/include LDFLAGS=-L$(KVM_SHARED)/lib CPPFLAGS=-I$(KVM_SHARED)/include; $(MAKE); $(MAKE) install
