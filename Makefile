@@ -1,5 +1,5 @@
-SRC_ROOT=/images/SOURCE
-KERNEL_SRC=$(SRC_ROOT)/upstream_fun
+SRC_ROOT=/scrap/matanb
+KERNEL_SRC=$(SRC_ROOT)/linux
 # VMware
 VMWARE_VM=$(SRC_ROOT)/src/vm-machines/archlinux/archlinux.vmx
 VMWARE_VM_REPACK=$(SRC_ROOT)/src/vm-machines/archlinux/archlinux-000001.vmdk
@@ -8,11 +8,12 @@ VMWARE_VM_REPACK=$(SRC_ROOT)/src/vm-machines/archlinux/archlinux-000001.vmdk
 #KVM_RELEASE=wheezy
 #KVM_RELEASE=jessie
 KVM_RELEASE=sid
-KVM_PACKAGES=openssh-server,python,perl,vim,pciutils,ibverbs-utils,libibverbs-dev,libmlx5-dev,infiniband-diags,opensm,librdmacm-dev,rdmacm-utils,libnl-3-200,libnl-route-3-200
+KVM_PACKAGES=openssh-server,python,perl,vim,pciutils,ibverbs-utils,libibverbs-dev,libmlx5-dev,infiniband-diags,opensm,librdmacm-dev,rdmacm-utils,libnl-3-200,libnl-route-3-200,gdb
 KVM_SHARED=$(SRC_ROOT)/kvm_shared
 KVM_SHARED_USER=$(KVM_SHARED)/usr
 KVM_SHARED_MODULES=$(KVM_SHARED)/modules
 KVM_IMAGE=$(SRC_ROOT)/dev-scripts/build
+RDMACORE_SRC=$(SRC_ROOT)/rdma-core
 
 # SimX
 #SIMX_BIN=$(SRC_ROOT)/simx_bin/bin/qemu-system-x86_64
@@ -21,6 +22,7 @@ SIMX_BIN=$(SRC_ROOT)/simx/x86_64-softmmu/qemu-system-x86_64
 # LIBS
 LIBIBVERBS_SRC=$(SRC_ROOT)/libibverbs/
 LIBMLX5_SRC=$(SRC_ROOT)/libmlx5/
+LIBRDMACM_SRC=$(SRC_ROOT)/librdmacm
 
 # Strace
 STRACE_SRC=$(SRC_ROOT)/strace-code/
@@ -48,10 +50,10 @@ simx:
 	@echo "Start SimX image"
 	@# add -s option for running gdb
 	@# and run "ggb vmlinux"
-	@$(SIMX_BIN) -enable-kvm -kernel $(KERNEL_SRC)/arch/x86/boot/bzImage -drive \
+	@TERM=xterm-256color $(SIMX_BIN) -enable-kvm -kernel $(KERNEL_SRC)/arch/x86/boot/bzImage -drive \
 		file=$(KVM_IMAGE)/$(KVM_RELEASE).img,if=virtio,format=raw \
 		-no-reboot -nographic \
-		-m 512M -append 'root=/dev/vda console=hvc0 debug rootwait rw' \
+		-m 1024M -append 'root=/dev/vda console=hvc0 debug rootwait rw' \
 		-chardev stdio,id=stdio,mux=on,signal=off \
 		-device virtio-serial-pci \
 		-device virtconsole,chardev=stdio \
@@ -59,20 +61,47 @@ simx:
 		-display none \
 		-net nic,model=virtio,macaddr=52:54:00:12:34:56 \
 		-net user,hostfwd=tcp:127.0.0.1:4444-:22 \
-		-netdev tap,fd=26,id=hostnet0 -device e1000,netdev=hostnet0,id=net0,mac=00:50:56:18:25:09 \
-		-netdev tap,fd=28,id=hostnet1 -device connectx4,netdev=hostnet1,id=net1,mac=52:54:00:b5:47:32 \
 		-fsdev local,id=fs1,path=$(SRC_ROOT),security_model=passthrough \
 		-device virtio-9p-pci,fsdev=fs1,mount_tag=host-code \
 		-fsdev local,id=fs2,path=$(KVM_SHARED_USER),security_model=passthrough \
 		-device virtio-9p-pci,fsdev=fs2,mount_tag=user \
-		-fsdev local,id=fs3,path=$(KVM_SHARED_MODULES),security_model=passthrough \
-		-device virtio-9p-pci,fsdev=fs3,mount_tag=modules
+		-fsdev local,id=fs3,path=$(KVM_SHARED_MODULES)/lib/modules,security_model=passthrough \
+		-device virtio-9p-pci,fsdev=fs3,mount_tag=modules \
+		-netdev user,id=hostnet0 -device e1000,netdev=hostnet0,id=net0,mac=00:50:56:18:25:09 \
+		-netdev tap,id=hostnet1,ifname="simx_tap0",script=./qemu-ifup -device connectx4,netdev=hostnet1,id=net1,mac=52:54:00:b5:47:32 \
+		-netdev tap,id=hostnet2,ifname="simx_tap1",script=./qemu-ifup -device connectx4,netdev=hostnet2,id=net2,mac=52:54:00:b5:47:34 \
+#		-device vfio-pci,host=04:00.0,id=hostdev0,bus=pci.0,addr=0xa,rombar=0 \
+#		-device vfio-pci,host=04:00.1,id=hostdev1,bus=pci.0,addr=0xb,rombar=0
+
+simx1:
+	@echo "Start SimX image"
+	@# add -s option for running gdb
+	@# and run "ggb vmlinux"
+	@TERM=xterm-256color $(SIMX_BIN) -enable-kvm -kernel $(KERNEL_SRC)/arch/x86/boot/bzImage -drive \
+		file=$(KVM_IMAGE)/$(KVM_RELEASE).img,if=virtio,format=raw \
+		-no-reboot -nographic \
+		-m 1024M -append 'root=/dev/vda console=hvc0 debug rootwait rw' \
+		-chardev stdio,id=stdio,mux=on,signal=off \
+		-device virtio-serial-pci \
+		-device virtconsole,chardev=stdio \
+		-mon chardev=stdio \
+		-display none \
+		-net nic,model=virtio,macaddr=52:54:00:12:34:57 \
+		-net user,hostfwd=tcp:127.0.0.1:4445-:22 \
+		-fsdev local,id=fs1,path=$(SRC_ROOT),security_model=passthrough \
+		-device virtio-9p-pci,fsdev=fs1,mount_tag=host-code \
+		-fsdev local,id=fs2,path=$(KVM_SHARED_USER),security_model=passthrough \
+		-device virtio-9p-pci,fsdev=fs2,mount_tag=user \
+		-fsdev local,id=fs3,path=$(KVM_SHARED_MODULES)/lib/modules,security_model=passthrough \
+		-device virtio-9p-pci,fsdev=fs3,mount_tag=modules \
+		-netdev user,id=hostnet0 -device e1000,netdev=hostnet0,id=net0,mac=00:50:56:18:25:0a \
+		-netdev tap,id=hostnet1,ifname="simx1_tap0",script=./qemu-ifup -device connectx4,netdev=hostnet1,id=net1,mac=52:54:00:b5:47:33
 
 kvm-prepare-folder:
 	@echo "Build Debian $(KVM_RELEASE) image"
 	@sudo rm -rf build
 	@mkdir -p build/kvm-image
-	@sudo debootstrap --include=$(KVM_PACKAGES) $(KVM_RELEASE) build/kvm-image http://http.debian.net/debian/
+	@sudo debootstrap --include=$(KVM_PACKAGES) $(KVM_RELEASE) build/kvm-image http://debian.co.il/debian/
 	@sudo sed -i '/^root/ { s/:x:/::/ }' build/kvm-image/etc/passwd
 	@echo 'V0:23:respawn:/sbin/getty 115200 hvc0' | sudo tee -a build/kvm-image/etc/inittab
 	@printf '\nauto eth0\niface eth0 inet dhcp\n' | sudo tee -a build/kvm-image/etc/network/interfaces
@@ -114,9 +143,17 @@ clean-shared:
 
 libs:
 	@echo "Build libibverbs"
-	@cd $(LIBIBVERBS_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) --sysconfdir=/etc CFLAGS=-I$(KVM_SHARED_USER)/include LDFLAGS=-L$(KVM_SHARED_USER)/lib CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
+	@cd $(LIBIBVERBS_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) --sysconfdir=/etc CFLAGS="-I$(KVM_SHARED_USER)/include -g" LDFLAGS="-L$(KVM_SHARED_USER)/lib -L$(KVM_IMAGE)/kvm-image/usr/lib/x86_64-linux-gnu" CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
 	@echo "Build libmlx5"
-	@cd $(LIBMLX5_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) CFLAGS=-I$(KVM_SHARED_USER)/include LDFLAGS=-L$(KVM_SHARED_USER)/lib CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
+	@cd $(LIBMLX5_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) CFLAGS="-I$(KVM_SHARED_USER)/include -g" LDFLAGS="-L$(KVM_SHARED_USER)/lib -L$(KVM_IMAGE)/kvm-image/usr/lib/x86_64-linux-gnu" CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
+
+rdma-core:
+	@echo "Build rdma-core"
+	@cd $(RDMACORE_SRC)/build; cmake ../ -DCMAKE_INSTALL_PREFIX:PATH=$(KVM_SHARED_USER) -DBUILD_INCLUDE:PATH=$(KVM_SHARED_USER)/include -DBUILD_LINK:PATH=$(KVM_IMAGE)/kvm-image/lib/x86_64-linux-gnu/ -DSYS_LINK:PATH=$(KVM_IMAGE)/kvm-image/usr/lib/x86_64-linux-gnu -G"Unix Makefiles" -DNL3_LIBRARIES:PATH="$(KVM_IMAGE)/kvm-image/usr/lib/x86_64-linux-gnu/libnl-3.so.200;$(KVM_IMAGE)/kvm-image/usr/lib/x86_64-linux-gnu/libnl-route-3.so.200" -DNL3_INCLUDE_DIRS:PATH=/usr/include/libnl3; $(MAKE); $(MAKE) install
+
+librdmacm:
+	@echo "Build librdmacm"
+	@cd $(LIBRDMACM_SRC)/; ./autogen.sh; ./configure --prefix=$(KVM_SHARED_USER) CFLAGS="-I$(KVM_SHARED_USER)/include -g" LDFLAGS="-L$(KVM_SHARED_USER)/lib -L$(KVM_IMAGE)/kvm-image/usr/lib/x86_64-linux-gnu" CPPFLAGS=-I$(KVM_SHARED_USER)/include; $(MAKE); $(MAKE) install
 
 build:
 	@echo "Start kernel build"
