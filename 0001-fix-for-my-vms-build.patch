@@ -1,0 +1,65 @@
+From 19559d42bbf9092d942fc2fdf2efc0efc6ec146a Mon Sep 17 00:00:00 2001
+From: Matan Barak <matanb@mellanox.com>
+Date: Tue, 7 Mar 2017 19:56:48 +0200
+Subject: [PATCH] fix for my vms build
+
+Signed-off-by: Matan Barak <matanb@mellanox.com>
+---
+ CMakeLists.txt | 20 ++++----------------
+ 1 file changed, 4 insertions(+), 16 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index c6dc136..d96549d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -131,6 +131,8 @@ endif()
+ #-------------------------
+ # Setup the basic C compiler
+ RDMA_BuildType()
++link_directories(${BUILD_LINK})
++link_directories(${SYS_LINK})
+ include_directories(${BUILD_INCLUDE})
+ 
+ # Require GNU99 mode
+@@ -209,12 +211,12 @@ RDMA_DoFixup("${HAVE_STDATOMIC}" "stdatomic.h")
+ 
+ # Enable development support features
+ # Prune unneeded shared libraries during linking
+-RDMA_AddOptLDFlag(CMAKE_EXE_LINKER_FLAGS SUPPORTS_AS_NEEDED "-Wl,--as-needed")
++RDMA_AddOptLDFlag(CMAKE_EXE_LINKER_FLAGS SUPPORTS_AS_NEEDED "-Wl,--as-needed,-lm")
+ RDMA_AddOptLDFlag(CMAKE_SHARED_LINKER_FLAGS SUPPORTS_AS_NEEDED "-Wl,--as-needed")
+ RDMA_AddOptLDFlag(CMAKE_MODULE_LINKER_FLAGS SUPPORTS_AS_NEEDED "-Wl,--as-needed")
+ 
+ # Ensure all shared ELFs have fully described linking
+-RDMA_AddOptLDFlag(CMAKE_EXE_LINKER_FLAGS SUPPORTS_NO_UNDEFINED "-Wl,--no-undefined")
++RDMA_AddOptLDFlag(CMAKE_EXE_LINKER_FLAGS SUPPORTS_NO_UNDEFINED "-Wl,--no-undefined,-lm")
+ RDMA_AddOptLDFlag(CMAKE_SHARED_LINKER_FLAGS SUPPORTS_NO_UNDEFINED "-Wl,--no-undefined")
+ 
+ # Enable gold linker - gold has different linking checks
+@@ -236,23 +238,9 @@ if (NOT DEFINED ENABLE_RESOLVE_NEIGH)
+ endif()
+ if (ENABLE_RESOLVE_NEIGH)
+   # FIXME use of pkgconfig is discouraged
+-  pkg_check_modules(NL3 libnl-3.0 libnl-route-3.0)
+-  if (NL3_FOUND)
+     set(NL_KIND 3)
+     set(NL_INCLUDE_DIRS ${NL3_INCLUDE_DIRS})
+     set(NL_LIBRARIES ${NL3_LIBRARIES})
+-  else()
+-    # FIXME: I don't know why we have this fallback, all supported distros
+-    # have libnl3
+-    pkg_check_modules(NL1 libnl-1)
+-    if (NL1_FOUND)
+-      set(NL_KIND 1)
+-      set(NL_INCLUDE_DIRS ${NL1_INCLUDE_DIRS})
+-      set(NL_LIBRARIES ${NL1_LIBRARIES})
+-    else()
+-      message(FATAL_ERROR "Cannot find libnl-3.0 or libnl-1")
+-    endif()
+-  endif()
+ 
+   include_directories(${NL_INCLUDE_DIRS})
+ else()
+-- 
+1.8.3.1
+
